@@ -1,0 +1,249 @@
+local passion = {}
+passion.mousepos = {nil, nil}
+passion.state = {
+  events = {},
+  components = {}
+}
+
+--Constructors -----------------------------------------
+function passion.box(spassion, x, y, w, h)
+  local box = {x, y, w, h}
+
+  function box.split(...) return spassion:split(...) end
+  function box.fill(...) return spassion:fill(...) end
+  function box.inset(...) return spassion:inset(...) end
+  function box.outset(...) return spassion:outset(...) end
+  function box.third(...) return spassion:third(...) end
+  function box.inside(box, px, py)
+    local x, y, w, h = unpack(box)
+    return px >= x and py >= y and px <= x + w and py <= y + h
+  end
+
+  return box
+end
+
+function passion:root()
+  return self:box(
+    0, 0,
+    love.graphics.getWidth(),
+    love.graphics.getHeight()
+  )
+end
+
+-- Box Manipulation -----------------------------------------
+function passion:split(box, direction, percent, inset)
+  box = box:inset(inset)
+  local x, y, w, h = unpack(box)
+
+  -- Create New Boxes
+  if direction == 'vertical' then
+    local a = self:box(
+      x, y,
+      w * percent, h
+    )
+
+    local b = self:box(
+      x + w*percent, y,
+      w * (1 - percent), h
+    )
+
+    return a, b
+  end
+
+  if direction == 'horizontal' then
+    local a = self:box(
+      x, y,
+      w, h * percent
+    )
+
+    local b = self:box(
+      x, y + h*percent,
+      w, h * (1 - percent)
+    )
+
+    return a, b
+  end
+end
+
+function passion:third(box, direction, inset)
+  a, _ = box:split(direction, .33, inset)
+  _, b = box:split(direction, .33, inset)
+  _, c = box:split(direction, .66, inset)
+  b, _ = b:split(direction, .5, inset)
+  return a, b, c
+end
+
+function passion:inset(box, amount)
+  local x, y, w, h = unpack(box)
+
+  -- Apply Inset
+  x = x + amount
+  y = y + amount
+  w = w - (amount * 2)
+  h = h - (amount * 2)
+
+  return self:box(x, y, w, h)
+end
+
+function passion:outset(box, amount)
+  local x, y, w, h = unpack(box)
+
+  -- Apply Outset
+  x = x - amount
+  y = y - amount
+  w = w + (amount * 2)
+  h = h + (amount * 2)
+
+  return self:box(x, y, w, h)
+end
+
+function passion:fill(box, handler)
+  --Is it a legitimate handler?
+  assert(handler.event ~= nil, 'Passed handler has no event method')
+  assert(handler.output ~= nil, 'Passed handler has no output method')
+  assert(handler.render ~= nil, 'Passed handler has no render method')
+
+  local component = {
+    box = box,
+    handler = handler,
+  }
+
+  --Pass it all events since last draw
+  for i, event in pairs(self.state.events) do
+    component.handler:event(event, component)
+  end
+
+  -- Add it to components
+  table.insert(self.state.components, component)
+
+  -- Return its output
+  return component.handler:output(component)
+end
+
+-- Components -----------------------------------------
+function passion.rectangle(passion, options)
+  options = options or {}
+  return {
+    fillColour = options.fillColour or {0, 0, 0},
+    mode = options.mode or 'fill',
+    round = options.round or 0,
+    event = function(self, event, component) end,
+    output = function(self, component) end,
+    render = function(self, component)
+      --Draw a rectangle the size of the box
+      local x, y, w, h = unpack(component.box)
+      love.graphics.setColor(self.fillColour)
+      love.graphics.rectangle(self.mode, x, y, w, h, self.round)
+    end
+  }
+end
+
+function passion.label(passion, text, options)
+  options = options or {}
+  return {
+    text = text,
+    textColour = options.textColour or {0, 0, 0},
+    halign = options.halign or 'center',
+    valign = options.valign or 'middle',
+    font = options.font or love.graphics.getFont(),
+    event = function(self, event, component) end,
+    output = function(self, component) end,
+    render = function(self, component)
+      -- Draw a label
+      local x, y, w, h = unpack(component.box)
+      local font = love.graphics.getFont()
+      local th = font:getHeight() * math.ceil(font:getWidth(self.text) / w)
+      if self.valign == 'middle' then y = y + (h / 2 - th / 2) end
+      if self.valign == 'bottom' then y = y + (h - th / 2) end
+      love.graphics.setColor(self.textColour)
+      love.graphics.setFont(self.font)
+      love.graphics.printf(self.text, x, y, w, self.halign)
+    end
+  }
+end
+
+function passion.button(passion, text, options)
+  options = options or {}
+  return {
+    clickable = passion:clickable(),
+    label = passion:label(text, options),
+    rectangle = passion:rectangle(options),
+    event = function(self, event, component)
+      self.clickable:event(event, component)
+    end,
+    output = function(self, component)
+      return self.clickable:output(component)
+    end,
+    render = function(self, component)
+      -- Hover Effects
+      if self.clickable.hovered then
+        component.box = component.box:outset(4)
+      end
+
+      -- Render
+      self.rectangle:render(component)
+      self.label:render(component)
+    end
+  }
+end
+
+function passion.clickable(passion)
+  return {
+    event = function(self, event, component)
+      if event.type == 'mousepressed' then
+        local x, y, button = unpack(event)
+        if component.box:inside(x, y) then
+          if button == 1 then
+            self.clicked = true
+          end
+        end
+      end
+    end,
+    output = function(self, component)
+      local mx, my = unpack(passion.mousepos)
+      if mx and my then self.hovered = component.box:inside(mx, my) else self.hovered = false end
+
+      return {
+        clicked = self.clicked,
+        hovered = self.hovered
+      }
+    end,
+    render = function(self, component) end,
+  }
+end
+
+-- Event Handlers -----------------------------------------
+function passion:draw()
+  -- Render Components
+  for i, comp in pairs(self.state.components) do
+    comp.handler:render(comp)
+  end
+
+
+  -- Reset State
+  self.state = {
+    events = {},
+    components = {},
+  }
+end
+
+function passion:mousepressed(...)
+  table.insert(self.state.events, {type = 'mousepressed', ...})
+end
+function passion:mousemoved(...)
+  table.insert(self.state.events, {type = 'mousemoved', ...})
+  self.mousepos = {
+    ({...})[1],
+    ({...})[2],
+  }
+end
+function passion:keypressed(...)
+  table.insert(self.state.events, {type = 'keypressed', ...})
+end
+function passion:textinput(...)
+  table.insert(self.state.events, {type = 'textinput', ...})
+end
+
+
+-- Return  -----------------------------------------
+return passion

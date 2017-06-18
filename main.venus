@@ -1,0 +1,32 @@
+require('core.helpers')
+pprint = require('core.tableprint')(require('core.serpent'))
+local passion = require('passion')
+
+love.graphics.setBackgroundColor(255, 255, 255)
+love.graphics.setColor(0, 0, 0)
+
+local titleFont = love.graphics.newFont(40)
+
+fn love.draw() {
+  local l, r = passion:root():split('vertical', .5, 30)
+
+  l = l:inset(30)
+  l:fill(passion:button('Play', {round = 15, mode = 'line', font = titleFont}))
+
+  a, b, c = r:third('horizontal', 0)
+
+  a = a:inset(30)
+  b = b:inset(30)
+  c = c:inset(30)
+  a:fill(passion:button('1', {round = 15, mode = 'line', font = titleFont}))
+  b:fill(passion:button('2', {round = 15, mode = 'line', font = titleFont}))
+  c:fill(passion:button('3', {round = 15, mode = 'line', font = titleFont}))
+
+  passion:draw()
+}
+
+
+fn love.textinput(...) {passion:textinput(...)}
+fn love.mousepressed(...) {passion:mousepressed(...)}
+fn love.mousemoved(...) {passion:mousemoved(...)}
+fn love.keypressed(...) {passion:keypressed(...)}
