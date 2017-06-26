@@ -146,11 +146,14 @@ function passion.label(passion, text, options)
     halign = options.halign or 'center',
     valign = options.valign or 'middle',
     font = options.font or love.graphics.getFont(),
+    offset = options.labelOffset or {0, 0},
     event = function(self, event, component) end,
     output = function(self, component) end,
     render = function(self, component)
       -- Draw a label
       local x, y, w, h = unpack(component.box)
+      x = x + self.offset[1]
+      y = y + self.offset[2]
       local font = love.graphics.getFont()
       local th = font:getHeight() * math.ceil(font:getWidth(self.text) / w)
       if self.valign == 'middle' then y = y + (h / 2 - th / 2) end
@@ -209,6 +212,73 @@ function passion.clickable(passion)
       }
     end,
     render = function(self, component) end,
+  }
+end
+
+function passion.textfield(passion, value, active, options)
+  options = options or {}
+  local text = tostring(value)
+  local offset = {0, 0}
+  if active then
+    text = text .. '|'
+    offset = {(options.font or love.graphics.getFont()):getWidth('|') / 2, 0}
+  end
+  options.labelOffset = offset
+  return {
+    textinputtable = passion:textinputtable(value, active),
+    label = passion:label(text, options),
+    rectangle = passion:rectangle(options),
+    event = function(self, event, component)
+      self.textinputtable:event(event, component)
+      if event.type == 'mousepressed' then
+        local mx, my = unpack(event)
+        if component.box:inside(mx, my) then
+          self.textinputtable.active = true
+          love.keyboard.setTextInput(true)
+        else
+          self.textinputtable.active = false
+        end
+      end
+    end,
+    output = function(self, component)
+      return self.textinputtable:output(component).value, self.textinputtable.active
+    end,
+    render = function(self, component)
+      -- Render
+      self.rectangle:render(component)
+      self.label:render(component)
+    end
+  }
+end
+
+function passion.textinputtable(passion, value, active)
+  options = options or {}
+  return {
+    value = value,
+    active = active,
+    event = function(self, event, component)
+      if event.type == 'textinput' then
+        if self.active then
+          local text = unpack(event)
+          self.value = self.value .. text
+        end
+      end
+
+      if event.type == 'keypressed' then
+        local key = unpack(event)
+        if self.active then
+          if key == 'backspace' then
+            self.value = self.value:sub(1, -2)
+          end
+        end
+      end
+    end,
+    output = function(self, component)
+      return {
+        value = self.value
+      }
+    end,
+    render = function(self, component) end
   }
 end
 

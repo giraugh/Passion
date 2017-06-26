@@ -6,6 +6,7 @@ love.graphics.setBackgroundColor(255, 255, 255)
 love.graphics.setColor(0, 0, 0)
 
 local titleFont = love.graphics.newFont(40)
+local textInputValue, textInputActive = 'Hello', false
 
 fn love.draw() {
   local l, r = passion:root():split('vertical', .5, 30)
@@ -19,7 +20,8 @@ fn love.draw() {
   b = b:inset(30)
   c = c:inset(30)
   a:fill(passion:button('1', {round = 15, mode = 'line', font = titleFont}))
-  b:fill(passion:button('2', {round = 15, mode = 'line', font = titleFont}))
+  textInputValue, textInputActive = b:fill(passion:textfield(textInputValue, textInputActive, {round = 15, mode = 'line', font = titleFont}))
+  ##print(textInputActive)
   c:fill(passion:button('3', {round = 15, mode = 'line', font = titleFont}))
 
   passion:draw()
