@@ -14,6 +14,10 @@ function passion.box(spassion, x, y, w, h)
   function box.inset(...) return spassion:inset(...) end
   function box.outset(...) return spassion:outset(...) end
   function box.third(...) return spassion:third(...) end
+  function box.quarter(...) return spassion:quarter(...) end
+  function box.squarify(...) return spassion:squarify(...) end
+  function box.segment(...) return spassion:segment(...) end
+  function box.transform(...) return spassion:transform(...) end
   function box.inside(box, px, py)
     local x, y, w, h = unpack(box)
     return px >= x and py >= y and px <= x + w and py <= y + h
@@ -66,11 +70,51 @@ function passion:split(box, direction, percent, inset)
 end
 
 function passion:third(box, direction, inset)
-  a, _ = box:split(direction, .33, inset)
-  _, b = box:split(direction, .33, inset)
-  _, c = box:split(direction, .66, inset)
-  b, _ = b:split(direction, .5, inset)
+  local a, b = box:split(direction, .333, inset)
+  local _, c = box:split(direction, .666, inset)
+  b, _ = b:split(direction, .5, 0)
   return a, b, c
+end
+
+function passion:quarter(box, direction, inset)
+  local l, r = box:split(direction, .5, inset)
+  local a, b = l:split(direction, .5, 0)
+  local c, d = r:split(direction, .5, 0)
+  return a, b, c, d
+end
+
+function passion:segment(box, direction, number, inset)
+  box = box:inset(inset)
+  local x, y, w, h = unpack(box)
+  local boxs = {}
+  for i = 1, number do
+    if direction == 'vertical' then
+      table.insert(boxs, passion:box(
+        x + (i-1)*(w/number), y,
+        (w/number), h
+      ))
+    else
+      table.insert(boxs, passion:box(
+        x, y + (i-1)*(h/number),
+        w, (h/number)
+      ))
+    end
+  end
+
+  return unpack(boxs)
+end
+
+function passion:squarify(box)
+  local x, y, w, h = unpack(box)
+  if w > h then
+    w = h
+  end
+
+  if h > w then
+    h = w
+  end
+
+  return self:box(x, y, w, h)
 end
 
 function passion:inset(box, amount)
@@ -94,6 +138,15 @@ function passion:outset(box, amount)
   w = w + (amount * 2)
   h = h + (amount * 2)
 
+  return self:box(x, y, w, h)
+end
+
+function passion:transform(box, dx, dy, dw, dh)
+  local x, y, w, h = unpack(box)
+  x = x + dx
+  y = y + dy
+  w = w + dw
+  h = h + dh
   return self:box(x, y, w, h)
 end
 
@@ -124,7 +177,8 @@ end
 function passion.rectangle(passion, options)
   options = options or {}
   return {
-    fillColour = options.fillColour or {0, 0, 0},
+    rectColour = options.rectColour or {0, 0, 0},
+    lineWidth = options.lineWidth or 1,
     mode = options.mode or 'fill',
     round = options.round or 0,
     event = function(self, event, component) end,
@@ -132,8 +186,19 @@ function passion.rectangle(passion, options)
     render = function(self, component)
       --Draw a rectangle the size of the box
       local x, y, w, h = unpack(component.box)
-      love.graphics.setColor(self.fillColour)
+
+      --is round a percentage?
+      if self.round < 1 then
+        self.round = self.round * (w)
+        if self.round > w / 2 then
+          self.round = w / 2
+        end
+      end
+
+      love.graphics.setColor(self.rectColour)
+      love.graphics.setLineWidth(self.lineWidth)
       love.graphics.rectangle(self.mode, x, y, w, h, self.round)
+      love.graphics.setLineWidth(1)
     end
   }
 end
@@ -154,12 +219,12 @@ function passion.label(passion, text, options)
       local x, y, w, h = unpack(component.box)
       x = x + self.offset[1]
       y = y + self.offset[2]
+      love.graphics.setFont(self.font)
       local font = love.graphics.getFont()
       local th = font:getHeight() * math.ceil(font:getWidth(self.text) / w)
       if self.valign == 'middle' then y = y + (h / 2 - th / 2) end
       if self.valign == 'bottom' then y = y + (h - th / 2) end
       love.graphics.setColor(self.textColour)
-      love.graphics.setFont(self.font)
       love.graphics.printf(self.text, x, y, w, self.halign)
     end
   }
